@@ -3,6 +3,7 @@
 # https://bioconductor.org/packages/release/bioc/html/sva.html 
 # The original and present code is under the Artistic License 2.0.
 # If using this code, make sure you agree and accept this license.  
+library(matrixStats)
 
 # Following four find empirical hyper-prior values
 aprior <- function(gamma.hat){
@@ -22,18 +23,32 @@ postvar <- function(sum2,n,a,b){
 	(.5*sum2+b)/(n/2+a-1)
 }
 
-
+apriorMat <- function(gamma.hat) {
+  m <- rowMeans2(gamma.hat)
+  s2 <- rowVars(gamma.hat)
+  return((2*s2+m^2)/s2)
+}
+bpriorMat <- function(gamma.hat) {
+  m <- rowMeans2(gamma.hat)
+  s2 <- rowVars(gamma.hat)
+  return((m*s2+m^3)/s2)
+}
 # Pass in entire data set, the design matrix for the entire data, the batch means, the batch variances, priors (m, t2, a, b), columns of the data  matrix for the batch. Uses the EM to find the parametric batch adjustments
 
 it.sol  <- function(sdat,g.hat,d.hat,g.bar,t2,a,b,conv=.0001){
-	n <- apply(!is.na(sdat),1,sum)
+	#n <- apply(!is.na(sdat),1,sum)
+	n <- rowSums(!is.na(sdat))
 	g.old <- g.hat
 	d.old <- d.hat
 	change <- 1
 	count <- 0
+	ones <- rep(1,ncol(sdat))
+
 	while(change>conv){
 		g.new  <- postmean(g.hat,g.bar,n,d.old,t2)
-		sum2   <- apply((sdat-g.new%*%t(rep(1,ncol(sdat))))^2, 1, sum,na.rm=T)
+		#sum2   <- apply((sdat-g.new%*%t(rep(1,ncol(sdat))))^2, 1, sum,na.rm=T)
+		#sum2   <- apply((sdat-tcrossprod(g.new, rep(1,ncol(sdat))))^2, 1, sum,na.rm=T)
+		sum2 <- rowSums2((sdat-tcrossprod(g.new, ones))^2, na.rm=TRUE)
 		d.new  <- postvar(sum2,n,a,b)
 		change <- max(abs(g.new-g.old)/g.old,abs(d.new-d.old)/d.old)
 		g.old <- g.new
@@ -45,6 +60,31 @@ it.sol  <- function(sdat,g.hat,d.hat,g.bar,t2,a,b,conv=.0001){
 	rownames(adjust) <- c("g.star","d.star")
 	adjust
 }
+
+
+int.eprior <- function(sdat, g.hat, d.hat){
+    g.star <- d.star <- NULL
+    r <- nrow(sdat)
+    for(i in 1:r){
+        g <- g.hat[-i]
+        d <- d.hat[-i]		
+        x <- sdat[i,!is.na(sdat[i,])]
+        n <- length(x)
+        j <- numeric(n)+1
+        dat <- matrix(as.numeric(x), length(g), n, byrow=TRUE)
+        resid2 <- (dat-g)^2
+        sum2 <- resid2 %*% j
+        LH <- 1/(2*pi*d)^(n/2)*exp(-sum2/(2*d))
+        LH[LH=="NaN"]=0
+        g.star <- c(g.star, sum(g*LH)/sum(LH))
+        d.star <- c(d.star, sum(d*LH)/sum(LH))
+        ## if(i%%1000==0){cat(i,'\n')}
+    }
+    adjust <- rbind(g.star,d.star)
+    rownames(adjust) <- c("g.star","d.star")
+    adjust	
+} 
+
 
 
 # Create indices for matched samples across sites, for one covariate.

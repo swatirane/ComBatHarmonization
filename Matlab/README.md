@@ -15,6 +15,7 @@ To use ComBat, the following scripts will need to be available in the Matlab pat
 - `itSol.m`
 - `postmean.m`
 - `postvar.m`
+- `inteprior.m`
 - `combat.m`
 
 The directory containing those scripts can be added to the Matlab path as follows:
@@ -49,14 +50,20 @@ and let simulate an age and disease variable:
 age = [82 70 68 66 80 69 72 76 74 80]'; % Continuous variable
 disease = [1 2 1 2 1 2 1 2 1 2]'; % Categorical variable
 ```
-We create a p x 2 model matrix with age as the first column, and the second disease group as a dummy variable for the second column (disease=1 being the baseline category):
+We create a n x 2 model matrix with age as the first column, and the second disease group as a dummy variable for the second column (disease=1 being the baseline category):
 ```matlab
 disease = dummyvar(disease);
 mod = [age disease(:,2)];
 ```
-We use the function `combat` to harmonize the data across the 2 scanners:
+We use the function `combat` to harmonize the data across the 2 scanners using parametric adjustements:
 ```matlab
-data_harmonized = combat(dat, batch, mod);
+data_harmonized = combat(dat, batch, mod, 1);
+```
+
+or using non-parametric adjustments:
+
+```matlab
+data_harmonized = combat(dat, batch, mod, 0);
 ```
 
 To use ComBat without a model matrix, simply set
